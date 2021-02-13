@@ -37,7 +37,7 @@ if __name__ == "__main__":  # noqa
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--TOPIC_NAME",
-        help="The Cloud Pub/Sub topic to read from.\n"
+        help="The Cloud Pub/Sub topic to write to.\n"
         '"<TOPIC_NAME>".',
     )
     parser.add_argument(

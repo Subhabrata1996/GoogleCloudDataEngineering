@@ -8,9 +8,9 @@ def callback(message):
     print(f"Received {message}.")
     message.ack()
 
-def run(TOPIC_NAME, PROJECT_ID):
+def run(SUBSCRIPTION_NAME, PROJECT_ID):
 	subscriber = pubsub_v1.SubscriberClient()
-	subscription_path = subscriber.subscription_path(PROJECT_ID,TOPIC_NAME)
+	subscription_path = subscriber.subscription_path(PROJECT_ID,SUBSCRIPTION_NAME)
 	streaming_pull_future = subscriber.subscribe(subscription_path, callback=callback)
 	print(f"Listening for messages on {subscription_path}..\n")
 
@@ -25,9 +25,9 @@ def run(TOPIC_NAME, PROJECT_ID):
 if __name__ == "__main__": 
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--TOPIC_NAME",
-        help="The Cloud Pub/Sub topic to read from.\n"
-        '"<TOPIC_NAME>".',
+        "--SUBSCRIPTION_NAME",
+        help="The Cloud Pub/Sub subscription to read from.\n"
+        '"<SUBSCRIPTION_NAME>".',
     )
     parser.add_argument(
         "--PROJECT_ID",
@@ -37,11 +37,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
     try:
         run(
-        args.TOPIC_NAME,
+        args.SUBSCRIPTION_NAME,
         args.PROJECT_ID
     	)
     except KeyboardInterrupt:
-        print('Interrupted : Stopped Publishing messages')
+        print('Interrupted : Stopped Subscribing messages')
         try:
             sys.exit(0)
         except SystemExit:

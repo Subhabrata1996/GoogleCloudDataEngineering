@@ -1,0 +1,3 @@
+[console_scripts]
+beam = beam.__main__:main
+
