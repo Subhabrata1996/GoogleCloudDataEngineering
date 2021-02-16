@@ -9,7 +9,8 @@ from google.cloud import bigquery
 from apache_beam.options.pipeline_options import PipelineOptions
 import apache_beam.transforms.window as window
 import pandas as pd
-from apache_beam.io import WriteToText
+from apache_beam.io import WriteToText #Streaming pipeline not supported yet for python sdk
+from apache_beam.io import fileio
 
 def roundTime(dt=None, roundTo=60):
    if dt == None : dt = datetime.datetime.now()
@@ -27,18 +28,16 @@ class interpolateSensors(beam.DoFn):
     json_string["timestamp"] = timestamp
     return [json_string]
 
-def convertToCsv(sensorValues):
-    (timestamp, values) =  sensorValues
-    df = pd.DataFrame(values)
-    df.columns = ["Sensor","Value"]
-    csvStr =  str(timestamp)+","+",".join(str(x) for x in list(df.groupby(["Sensor"]).mean().T.iloc[0]))
-
-    return csvStr
+class convertToCsv(beam.DoFn):
+  def process(self,sensorValues):
+      (timestamp, values) =  sensorValues
+      df = pd.DataFrame(values)
+      df.columns = ["Sensor","Value"]
+      csvStr =  str(timestamp)+","+",".join(str(x) for x in list(df.groupby(["Sensor"]).mean().T.iloc[0]))
+      return csvStr
 
 def run(subscription_name, output_table, output_gcs_path, interval=1.0, pipeline_args=None):
-    p = beam.Pipeline(options=PipelineOptions( pipeline_args, streaming=True, save_main_session=True))
     schema = 'Timestamp:TIMESTAMP, PRESSURE_1:FLOAT, PRESSURE_2:FLOAT, PRESSURE_3:FLOAT, PRESSURE_4:FLOAT, PRESSURE_5:FLOAT'
-
     with beam.Pipeline(options=PipelineOptions( pipeline_args, streaming=True, save_main_session=True)) as p:
       data = (p
         | 'ReadData' >> beam.io.ReadFromPubSub(subscription=subscription_name)
@@ -47,8 +46,8 @@ def run(subscription_name, output_table, output_gcs_path, interval=1.0, pipeline
         | "to tuple" >> beam.Map(lambda x: (roundTime(datetime.datetime.strptime(x[0],'%Y-%m-%d %H:%M:%S.%f'), roundTo = interval),[x[1] , float(x[2])]))#{x.split(',')[1]:x.split(',')[2]}))
         | "Window" >> beam.WindowInto(window.FixedWindows(15))
         | "Groupby" >> beam.GroupByKey()
-      )
 
+      )
       bq = (
         data
         | "Interpolate" >> beam.ParDo(interpolateSensors())
@@ -57,12 +56,13 @@ def run(subscription_name, output_table, output_gcs_path, interval=1.0, pipeline
 
       gcs = (
         data
-        | "convert to csv" >> beam.Map(convertToCsv)
-        | "Write to GCS" >> WriteToText(output_gcs_path)
+        | "convert to csv" >> beam.ParDo(convertToCsv())
+        | "Write to GCS" >> fileio.WriteToFiles(output_gcs_path)
       )
 
 
 if __name__ == "__main__": 
+    logging.getLogger().setLevel(logging.INFO)
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--SUBSCRIPTION_NAME",
