@@ -1,6 +1,4 @@
 google-cloud-pubsub==2.2.0
 gunicorn==20.0.4
 scipy
-apache-beam[gcp]
-pandas
 oauth2client==3.0.0 
