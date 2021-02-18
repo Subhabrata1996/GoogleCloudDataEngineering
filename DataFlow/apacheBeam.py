@@ -29,9 +29,9 @@ class interpolateSensors(beam.DoFn):
     return [json_string]
 
 def convertToCsv(jsonData):   
-    csvStr =  jsonData["timestamp"]+","+jsonData["Pressure_1"]+","+
-              jsonData["Pressure_2"]+","+jsonData["Pressure_3"]+","+
-              jsonData["Pressure_4"]+","+jsonData["Pressure_5"]
+  csvStr =  str(jsonData["timestamp"])+","+str(jsonData["Pressure_1"])+","+ \
+            str(jsonData["Pressure_2"])+","+str(jsonData["Pressure_3"])+","+ \
+            str(jsonData["Pressure_4"])+","+str(jsonData["Pressure_5"])
   return csvStr
 
 def isMissing(jsonData):
