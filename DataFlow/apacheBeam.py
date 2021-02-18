@@ -28,9 +28,14 @@ class interpolateSensors(beam.DoFn):
     json_string["timestamp"] = timestamp
     return [json_string]
 
-def convertToCsv(jsonData):    
-    csvStr =  ",".join(str(elements) for elements in list(jsonData.values()))
-    return csvStr
+def convertToCsv(jsonData):   
+    csvStr =  jsonData["timestamp"]+","+jsonData["Pressure_1"]+","+
+              jsonData["Pressure_2"]+","+jsonData["Pressure_3"]+","+
+              jsonData["Pressure_4"]+","+jsonData["Pressure_5"]
+  return csvStr
+
+def isMissing(jsonData):
+    return len(jsonData.values()) == 6
 
 def run(subscription_name, output_table, output_gcs_path, interval=1.0, pipeline_args=None):
     schema = 'Timestamp:TIMESTAMP, PRESSURE_1:FLOAT, PRESSURE_2:FLOAT, PRESSURE_3:FLOAT, PRESSURE_4:FLOAT, PRESSURE_5:FLOAT'
@@ -43,6 +48,7 @@ def run(subscription_name, output_table, output_gcs_path, interval=1.0, pipeline
         | "Window" >> beam.WindowInto(window.FixedWindows(15))
         | "Groupby" >> beam.GroupByKey()
         | "Interpolate" >> beam.ParDo(interpolateSensors())
+        | "Filter Missing" >> beam.Filter(isMissing)
       )
       bq = (
         data        
