@@ -29,11 +29,8 @@ class interpolateSensors(beam.DoFn):
     return [json_string]
 
 class convertToCsv(beam.DoFn):
-  def process(self,sensorValues):
-      (timestamp, values) =  sensorValues
-      df = pd.DataFrame(values)
-      df.columns = ["Sensor","Value"]
-      csvStr =  str(timestamp)+","+",".join(str(x) for x in list(df.groupby(["Sensor"]).mean().T.iloc[0]))
+  def process(self,jsonData):     
+      csvStr =  ",".join(str(elements) for elements in list(jsonData.values()))
       return csvStr
 
 def run(subscription_name, output_table, output_gcs_path, interval=1.0, pipeline_args=None):
@@ -46,11 +43,10 @@ def run(subscription_name, output_table, output_gcs_path, interval=1.0, pipeline
         | "to tuple" >> beam.Map(lambda x: (roundTime(datetime.datetime.strptime(x[0],'%Y-%m-%d %H:%M:%S.%f'), roundTo = interval),[x[1] , float(x[2])]))#{x.split(',')[1]:x.split(',')[2]}))
         | "Window" >> beam.WindowInto(window.FixedWindows(15))
         | "Groupby" >> beam.GroupByKey()
-
+        | "Interpolate" >> beam.ParDo(interpolateSensors())
       )
       bq = (
-        data
-        | "Interpolate" >> beam.ParDo(interpolateSensors())
+        data        
         | "Write to Big Query" >> beam.io.WriteToBigQuery(output_table,schema=schema, write_disposition=beam.io.BigQueryDisposition.WRITE_APPEND) 
       )
 
