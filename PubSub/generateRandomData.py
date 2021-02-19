@@ -23,7 +23,7 @@ def run(TOPIC_NAME, PROJECT_ID, INTERVAL = 200):
 		for pos in range(0,5):		
 			sensor = sensorNames[pos];
 			reading = stats.truncnorm.rvs(-1,1,loc = sensorCenterLines[pos], scale = standardDeviation[pos])
-			timeStamp = str(datetime.datetime.now())
+			timeStamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
 			message = timeStamp+','+sensor+','+str(reading)
 			publisher.publish(topic_path, data=message.encode('utf-8'))
 			c=c+1
