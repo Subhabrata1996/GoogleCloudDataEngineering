@@ -71,7 +71,6 @@ if __name__ == "__main__":
     run(
         args.SUBSCRIPTION_NAME,
         args.BQ_TABLE,
-        args.GCS_PATH,
         args.AGGREGATION_INTERVAL,
         pipeline_args
       )
