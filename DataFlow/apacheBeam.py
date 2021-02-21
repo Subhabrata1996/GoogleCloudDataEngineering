@@ -28,10 +28,11 @@ class interpolateSensors(beam.DoFn):
     json_string["timestamp"] = timestamp
     return [json_string]
 
-def convertToCsv(jsonData):   
-  csvStr =  str(jsonData["timestamp"])+","+str(jsonData["Pressure_1"])+","+ \
-            str(jsonData["Pressure_2"])+","+str(jsonData["Pressure_3"])+","+ \
-            str(jsonData["Pressure_4"])+","+str(jsonData["Pressure_5"])
+def convertToCsv(sensorValues):
+  (timestamp, values) =  sensorValues
+  df = pd.DataFrame(values)
+  df.columns = ["Sensor","Value"]
+  csvStr =  str(timestamp)+","+",".join(str(x) for x in list(df.groupby(["Sensor"]).mean().T.iloc[0]))
   return csvStr
 
 def isMissing(jsonData):
@@ -45,18 +46,20 @@ def run(subscription_name, output_table, output_gcs_path, interval=1.0, pipeline
         | "Decode" >> beam.Map(lambda x: x.decode('utf-8'))
         | "Convert to list" >> beam.Map(lambda x: x.split(","))
         | "to tuple" >> beam.Map(lambda x: (roundTime(datetime.datetime.strptime(x[0],'%Y-%m-%d %H:%M:%S.%f'), roundTo = interval),[x[1] , float(x[2])]))
+      )
+      bq = (
+        data  
         | "Window" >> beam.WindowInto(window.FixedWindows(15))
         | "Groupby" >> beam.GroupByKey()
         | "Interpolate" >> beam.ParDo(interpolateSensors())
-        | "Filter Missing" >> beam.Filter(isMissing)
-      )
-      bq = (
-        data        
+        | "Filter Missing" >> beam.Filter(isMissing)      
         | "Write to Big Query" >> beam.io.WriteToBigQuery(output_table,schema=schema, write_disposition=beam.io.BigQueryDisposition.WRITE_APPEND) 
       )
 
       gcs = (
         data
+        | "Window" >> beam.WindowInto(window.FixedWindows(120))
+        | "Groupby" >> beam.GroupByKey()
         | "convert to csv" >> beam.Map(convertToCsv)
         | "Write to GCS" >> fileio.WriteToFiles(output_gcs_path)
       )
