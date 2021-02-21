@@ -49,8 +49,8 @@ def run(subscription_name, output_table, output_gcs_path, interval=1.0, pipeline
       )
       bq = (
         data  
-        | "Window" >> beam.WindowInto(window.FixedWindows(15))
-        | "Groupby" >> beam.GroupByKey()
+        | "Window to 15 secs" >> beam.WindowInto(window.FixedWindows(15))
+        | "Groupby1" >> beam.GroupByKey()
         | "Interpolate" >> beam.ParDo(interpolateSensors())
         | "Filter Missing" >> beam.Filter(isMissing)      
         | "Write to Big Query" >> beam.io.WriteToBigQuery(output_table,schema=schema, write_disposition=beam.io.BigQueryDisposition.WRITE_APPEND) 
@@ -58,8 +58,8 @@ def run(subscription_name, output_table, output_gcs_path, interval=1.0, pipeline
 
       gcs = (
         data
-        | "Window" >> beam.WindowInto(window.FixedWindows(120))
-        | "Groupby" >> beam.GroupByKey()
+        | "Window to 120 seconds" >> beam.WindowInto(window.FixedWindows(120))
+        | "Groupby2" >> beam.GroupByKey()
         | "convert to csv" >> beam.Map(convertToCsv)
         | "Write to GCS" >> fileio.WriteToFiles(output_gcs_path)
       )
