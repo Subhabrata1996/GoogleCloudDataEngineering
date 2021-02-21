@@ -28,12 +28,13 @@ class interpolateSensors(beam.DoFn):
     json_string["timestamp"] = timestamp
     return [json_string]
 
-def convertToCsv(sensorValues):
-  (timestamp, values) =  sensorValues
-  df = pd.DataFrame(values)
-  df.columns = ["Sensor","Value"]
-  csvStr =  str(timestamp)+","+",".join(str(x) for x in list(df.groupby(["Sensor"]).mean().T.iloc[0]))
-  return csvStr
+class convertToCsv(beam.DoFn):
+  def process(self,sensorValues):
+    (timestamp, values) =  sensorValues
+    df = pd.DataFrame(values)
+    df.columns = ["Sensor","Value"]
+    csvStr =  str(timestamp)+","+",".join(str(x) for x in list(df.groupby(["Sensor"]).mean().T.iloc[0]))
+    return [csvStr]
 
 def isMissing(jsonData):
     return len(jsonData.values()) == 6
@@ -60,7 +61,7 @@ def run(subscription_name, output_table, output_gcs_path, interval=1.0, pipeline
         data
         | "Window to 120 seconds" >> beam.WindowInto(window.FixedWindows(120))
         | "Groupby2" >> beam.GroupByKey()
-        | "convert to csv" >> beam.Map(convertToCsv)
+        | "convert to csv" >> beam.ParDo(convertToCsv)
         | "Write to GCS" >> fileio.WriteToFiles(output_gcs_path)
       )
 
