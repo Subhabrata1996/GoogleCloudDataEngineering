@@ -16,6 +16,16 @@ def roundTime(dt=None, roundTo=1):
    rounding = (seconds+roundTo/2) // roundTo * roundTo
    return str(dt + datetime.timedelta(0,rounding-seconds,-dt.microsecond))
 
+class convertToCSV(beam.DoFn):
+  def process(self, sensorValues):
+    (timestamp, values) =  sensorValues
+    df = pd.DataFrame(values)
+    df.columns = ["timestamp","Sensor","Value"]
+    aggregated_df =  df.groupby(["timestamp","Sensor"]).mean()
+    transposed_df = aggregated_df.pivot_table(index=['timestamp'],columns='Sensor',values='Value', aggfunc='first')
+    csvStr = transposed_df.to_csv(header=False)
+    return [csvStr]
+
 
 class interpolateSensors(beam.DoFn):
   def process(self,sensorValues):
@@ -29,7 +39,7 @@ class interpolateSensors(beam.DoFn):
 def isMissing(jsonData):
     return len(jsonData.values()) == 6
 
-def run(subscription_name, output_table, interval=1.0, pipeline_args=None):
+def run(subscription_name, output_table, output_gcs_path, interval=1.0, pipeline_args=None):
     schema = 'Timestamp:TIMESTAMP, PRESSURE_1:FLOAT, PRESSURE_2:FLOAT, PRESSURE_3:FLOAT, PRESSURE_4:FLOAT, PRESSURE_5:FLOAT'
     with beam.Pipeline(options=PipelineOptions( pipeline_args, streaming=True, save_main_session=True)) as p:
       data = (p
@@ -46,6 +56,14 @@ def run(subscription_name, output_table, interval=1.0, pipeline_args=None):
         | "Filter Missing" >> beam.Filter(isMissing)      
         | "Write to Big Query" >> beam.io.WriteToBigQuery(output_table,schema=schema, write_disposition=beam.io.BigQueryDisposition.WRITE_APPEND) 
       )
+      gcs = (
+        data
+        | "Convert to 1 hr groups" >> beam.Map(lambda x: (roundTime(datetime.datetime.strptime(x[0],'%Y-%m-%d %H:%M:%S'), roundTo = 3600),[x[0],x[1][0],x[1][1]]))
+        | "Window 24 hrs" >> beam.WindowInto(window.FixedWindows(86400))
+        | "Groupby" >> beam.GroupByKey()
+        | "Interpolate for 1 hr data" >>  beam.ParDo(convertToCSV())
+        | "Write to GCS" >> fileio.WriteToFiles(output_gcs_path)
+        )
 
 
 if __name__ == "__main__": 
@@ -61,6 +79,10 @@ if __name__ == "__main__":
         help = "Big Query Table Path.\n"
         '"<PROJECT_ID>:<DATASET_NAME>.<TABLE_NAME>"')
     parser.add_argument(
+        "--GCS_PATH",
+        help = "Path to GCP cloud storage buket\n"
+        '"<gs://<PROJECT_ID>/<BUCKET>/<PATH>"')
+    parser.add_argument(
         "--AGGREGATION_INTERVAL",
         type = int,
         default = 1,
@@ -71,6 +93,7 @@ if __name__ == "__main__":
     run(
         args.SUBSCRIPTION_NAME,
         args.BQ_TABLE,
+        args.GCS_PATH,
         args.AGGREGATION_INTERVAL,
         pipeline_args
       )
