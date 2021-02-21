@@ -60,7 +60,7 @@ def run(subscription_name, output_table, output_gcs_path, interval=1.0, pipeline
         data
         | "Convert to 1 hr groups" >> beam.Map(lambda x: (roundTime(datetime.datetime.strptime(x[0],'%Y-%m-%d %H:%M:%S'), roundTo = 3600),[x[0],x[1][0],x[1][1]]))
         | "Window 24 hrs" >> beam.WindowInto(window.FixedWindows(86400))
-        | "Groupby" >> beam.GroupByKey()
+        | "Groupby hours" >> beam.GroupByKey()
         | "Interpolate for 1 hr data" >>  beam.ParDo(convertToCSV())
         | "Write to GCS" >> fileio.WriteToFiles(output_gcs_path)
         )
