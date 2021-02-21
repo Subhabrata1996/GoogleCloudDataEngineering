@@ -3,13 +3,11 @@ import datetime
 import json
 import logging
 import time
-from apache_beam.dataframe.convert import to_dataframe
 import apache_beam as beam
-from google.cloud import bigquery
 from apache_beam.options.pipeline_options import PipelineOptions
 import apache_beam.transforms.window as window
 import pandas as pd
-from apache_beam.io import WriteToText #Streaming pipeline not supported yet for python sdk
+#from apache_beam.io import WriteToText #Streaming pipeline not supported yet for python sdk
 from apache_beam.io import fileio
 
 def roundTime(dt=None, roundTo=1):
@@ -28,18 +26,10 @@ class interpolateSensors(beam.DoFn):
     json_string["timestamp"] = timestamp
     return [json_string]
 
-class convertToCsv(beam.DoFn):
-  def process(self,sensorValues):
-    (timestamp, values) =  sensorValues
-    df = pd.DataFrame(values)
-    df.columns = ["Sensor","Value"]
-    csvStr =  str(timestamp)+","+",".join(str(x) for x in list(df.groupby(["Sensor"]).mean().T.iloc[0]))
-    return [csvStr]
-
 def isMissing(jsonData):
     return len(jsonData.values()) == 6
 
-def run(subscription_name, output_table, output_gcs_path, interval=1.0, pipeline_args=None):
+def run(subscription_name, output_table, interval=1.0, pipeline_args=None):
     schema = 'Timestamp:TIMESTAMP, PRESSURE_1:FLOAT, PRESSURE_2:FLOAT, PRESSURE_3:FLOAT, PRESSURE_4:FLOAT, PRESSURE_5:FLOAT'
     with beam.Pipeline(options=PipelineOptions( pipeline_args, streaming=True, save_main_session=True)) as p:
       data = (p
@@ -51,18 +41,10 @@ def run(subscription_name, output_table, output_gcs_path, interval=1.0, pipeline
       bq = (
         data  
         | "Window to 15 secs" >> beam.WindowInto(window.FixedWindows(15))
-        | "Groupby1" >> beam.GroupByKey()
+        | "Groupby" >> beam.GroupByKey()
         | "Interpolate" >> beam.ParDo(interpolateSensors())
         | "Filter Missing" >> beam.Filter(isMissing)      
         | "Write to Big Query" >> beam.io.WriteToBigQuery(output_table,schema=schema, write_disposition=beam.io.BigQueryDisposition.WRITE_APPEND) 
-      )
-
-      gcs = (
-        data
-        | "Window to 120 seconds" >> beam.WindowInto(window.FixedWindows(120))
-        | "Groupby2" >> beam.GroupByKey()
-        | "convert to csv" >> beam.ParDo(convertToCsv)
-        | "Write to GCS" >> fileio.WriteToFiles(output_gcs_path)
       )
 
 
@@ -78,10 +60,6 @@ if __name__ == "__main__":
         "--BQ_TABLE",
         help = "Big Query Table Path.\n"
         '"<PROJECT_ID>:<DATASET_NAME>.<TABLE_NAME>"')
-    parser.add_argument(
-        "--GCS_PATH",
-        help = "Path to GCP cloud storage buket\n"
-        '"<gs://<PROJECT_ID>/<BUCKET>/<PATH>"')
     parser.add_argument(
         "--AGGREGATION_INTERVAL",
         type = int,
