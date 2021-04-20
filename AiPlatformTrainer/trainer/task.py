@@ -9,7 +9,6 @@ import joblib
 from google.cloud import storage
 from sklearn import tree
 from datetime import datetime
-import hypertune
 
 def read_from_bigquery(full_table_path, project_id=None, num_samples=None):
     """Read data from BigQuery and split into train and validation sets.
@@ -64,12 +63,6 @@ def train_score_model(dataset):
     score = f1_score(Y_test,Y_pred_DT, pos_label="Failure")
     logging.info('F1 Score: %s', score)
 
-    #Report the f1 score as a montoring metrics
-    hpt = hypertune.HyperTune()
-    hpt.report_hyperparameter_tuning_metric(
-        hyperparameter_metric_tag='Failure Model F1 Score',
-        metric_value=scores)
-
     return classifier_DT
 
 def save_model_to_gcs(model, path):
@@ -116,7 +109,7 @@ def _parse_args():
     )
 
     parser.add_argument(
-        '--output_dir',
+        '--job-dir',
         help='Output directory for exporting model and other metadata.',
         required=True,
     )
@@ -142,7 +135,7 @@ def run_experiment(arguments):
     dataset = read_from_bigquery(arguments.input)   
     dataset = label_dataset(dataset)    
     model = train_score_model(dataset)
-    save_model_to_gcs(model, arguments.output_dir)
+    save_model_to_gcs(model, arguments.job_dir)
 
 """Entry point"""
 def main():
@@ -156,3 +149,6 @@ def main():
     time_elapsed = time_end - time_start
     logging.info('Training elapsed time: {} seconds'.format(
         time_elapsed.total_seconds()))
+
+if __name__ == '__main__':
+    main()

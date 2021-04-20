@@ -5,7 +5,7 @@ REQUIRED_PACKAGES = [
 	'numpy', 
     'scikit-learn>=0.20.2',
     'pandas==0.24.2',
-    'cloudml-hypertune'
+    'pandas-gbq'
     ]
 
 setup(
