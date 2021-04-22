@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import f1_score 
-import joblib
+import pickle
 from google.cloud import storage
 from sklearn import tree
 from datetime import datetime
@@ -71,17 +71,16 @@ def save_model_to_gcs(model, path):
       path: (string) full path of the GCS bucket where out model would be stored
       model: The sklearn model we want to save
     """
-    artifact_filename = 'model.joblib'
+    artifact_filename = 'model.pkl'
 
     #Dump the model locally
-    local_path = artifact_filename
-    joblib.dump(model, local_path)
-
+    pickle_out = pickle.dumps(model)
+    
     model_directory = path
     storage_path = os.path.join(model_directory, artifact_filename)
     blob = storage.blob.Blob.from_string(storage_path, client=storage.Client())
-    #Copy the local model.joblib to gcs
-    blob.upload_from_filename(local_path)
+    #Copy the local model.pkl to gcs
+    blob.upload_from_string(pickle_out)
 
 def _parse_args():
     """Parses command-line arguments."""
