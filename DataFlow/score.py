@@ -53,7 +53,7 @@ def run(subscription_name, output_table, bucket_name, model_path, interval=1.0, 
         | "Convert to list" >> beam.Map(lambda x: x.split(","))
         | "to tuple" >> beam.Map(lambda x: (roundTime(datetime.datetime.strptime(x[0],'%Y-%m-%d %H:%M:%S.%f'), roundTo = interval),[x[1] , float(x[2])]))
       )
-      bq = (
+      Predict = (
         data  
         | "Window to 15 secs" >> beam.WindowInto(window.FixedWindows(15))
         | "Groupby" >> beam.GroupByKey()
